@@ -69,7 +69,85 @@ def status_report(name, robot_type, hp, max_hp, battery):
 def analyze_damage_log(lines):
     """TODO(Q2)：解析混合格式伤害日志，返回固定契约的统计 dict；
     行格式、去重与统计口径见题面 Q2 规范。"""
-    raise NotImplementedError("Q2 analyze_damage_log：题面 Q2·多源日志解析与统计")
+    armor_totals = {"front": 0, "left": 0, "right": 0}
+    seen_ids = set()
+    counted_events = 0
+    armor_names = {"F": "front", "L": "left", "R": "right"}
+    try:
+        source_lines = iter(lines)
+    except TypeError:
+        source_lines = iter(())
+
+    for raw_line in source_lines:
+        try:
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+
+            if line.startswith("{"):
+                event = json.loads(line)
+                if not isinstance(event, dict):
+                    continue
+                armor = event.get("armor")
+                if armor not in armor_totals:
+                    continue
+                damage = event.get("damage")
+                if type(damage) is not int or damage <= 0:
+                    continue
+                if "id" in event:
+                    try:
+                        id_key = json.dumps(
+                            event["id"], sort_keys=True,
+                            separators=(",", ":"), ensure_ascii=False,
+                            allow_nan=False)
+                    except (TypeError, ValueError):
+                        continue
+                    if id_key in seen_ids:
+                        continue
+                    seen_ids.add(id_key)
+            else:
+                segments = line.split(",")
+                event_damage = {}
+                for segment in segments:
+                    if ":" not in segment:
+                        raise ValueError("invalid sensor segment")
+                    letter, raw_value = segment.split(":", 1)
+                    if letter not in armor_names or letter in event_damage:
+                        raise ValueError("invalid sensor letter")
+                    if not raw_value.isdigit():
+                        raise ValueError("invalid sensor damage")
+                    value = int(raw_value)
+                    if value <= 0:
+                        raise ValueError("invalid sensor damage")
+                    event_damage[letter] = value
+                if not event_damage:
+                    raise ValueError("empty sensor event")
+                armor = None
+                damage = sum(event_damage.values())
+                for letter, value in event_damage.items():
+                    event_armor = armor_names[letter]
+                    armor_totals[event_armor] += value
+                counted_events += 1
+                continue
+
+            armor_totals[armor] += damage
+            counted_events += 1
+        except Exception:
+            continue
+
+    total = sum(armor_totals.values())
+    most_hit = None
+    if total:
+        most_hit = max(
+            ("front", "left", "right"),
+            key=lambda item: armor_totals[item])
+    avg = round(total / counted_events, 2) if counted_events else 0.0
+    return {
+        "total": total,
+        "by_armor": armor_totals,
+        "most_hit": most_hit,
+        "avg": avg,
+    }
 
 
 # ---------------------------------------------------------------------------
