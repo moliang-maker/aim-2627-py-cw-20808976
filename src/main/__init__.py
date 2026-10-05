@@ -336,7 +336,134 @@ def _decide_legacy(sensor, state, hp, heat):
 def run_patrol(grid, max_steps=500):
     """TODO(Q6)：sense → decide → act 主循环；
     循环结构、终止条件、脱困自由度与统计返回契约见题面 Q6 规范。"""
-    raise NotImplementedError("Q6 run_patrol：题面 Q6·主循环与统计契约")
+    steps = 0
+    visited = {grid.current_pos}
+    state = SentryState.PATROL
+    enemy_frames = []
+    wall = False
+    hand = "L"
+    wall_steps = 0
+    wall_limit = grid.width + grid.height
+    wall_entry_distance = 0
+    left_of = {
+        Facing.UP: Facing.LEFT,
+        Facing.LEFT: Facing.DOWN,
+        Facing.DOWN: Facing.RIGHT,
+        Facing.RIGHT: Facing.UP,
+    }
+    right_of = {value: key for key, value in left_of.items()}
+
+    def manhattan(position):
+        return (
+            abs(position[0] - grid.enemy_pos[0])
+            + abs(position[1] - grid.enemy_pos[1])
+        )
+
+    def has_candidate():
+        position = grid.current_pos
+        distance = manhattan(position)
+        return any(
+            not grid.is_blocked(position[0] + direction.delta[0],
+                                position[1] + direction.delta[1])
+            and manhattan((
+                position[0] + direction.delta[0],
+                position[1] + direction.delta[1],
+            )) < distance
+            for direction in (Facing.UP, Facing.DOWN, Facing.LEFT, Facing.RIGHT)
+        )
+
+    while steps < max_steps and grid.fuel > 0 and not grid.found_enemy:
+        position = grid.current_pos
+        enemy_frames.append(grid.current_pos == grid.enemy_pos)
+        if len(enemy_frames) > 6:
+            enemy_frames.pop(0)
+        sensor = {
+            "enemy_frames": tuple(enemy_frames),
+            "enemy_dist": (
+                manhattan(position)
+                if grid.current_pos != grid.enemy_pos
+                else 0
+            ),
+            "robot_type": "INFANTRY",
+            "max_hp": 100,
+        }
+        _, state = decide(sensor, state, 100, 0)
+
+        if not wall and not has_candidate():
+            wall = True
+            hand = "L"
+            wall_steps = 0
+            wall_entry_distance = manhattan(position)
+
+        if wall:
+            side = left_of[grid.facing] if hand == "L" else right_of[grid.facing]
+            opposite = (
+                right_of[grid.facing]
+                if hand == "L"
+                else left_of[grid.facing]
+            )
+
+            def cell(direction):
+                return (
+                    grid.current_pos[0] + direction.delta[0],
+                    grid.current_pos[1] + direction.delta[1],
+                )
+
+            if not grid.is_blocked(*cell(side)):
+                if hand == "L":
+                    grid.turn_left()
+                else:
+                    grid.turn_right()
+            elif grid.is_blocked(*cell(grid.facing)):
+                if not grid.is_blocked(*cell(opposite)):
+                    if hand == "L":
+                        grid.turn_right()
+                    else:
+                        grid.turn_left()
+                else:
+                    grid.turn_right()
+                    grid.turn_right()
+        else:
+            direction = next_step_toward(
+                grid.current_pos,
+                grid.enemy_pos,
+                grid.obstacles,
+                grid.facing,
+            )
+            order = (Facing.UP, Facing.RIGHT, Facing.DOWN, Facing.LEFT)
+            difference = (
+                order.index(direction) - order.index(grid.facing)
+            ) % 4
+            if difference == 3:
+                grid.turn_left()
+            else:
+                for _ in range(difference):
+                    grid.turn_right()
+
+        before = grid.current_pos
+        grid.move_forward()
+        steps += 1
+        if grid.current_pos != before:
+            visited.add(grid.current_pos)
+
+        if wall:
+            wall_steps += 1
+            if wall_steps > wall_limit and hand == "L":
+                hand = "R"
+                wall_steps = 0
+            elif wall_steps > 2 * wall_limit:
+                wall = False
+            elif has_candidate() and manhattan(grid.current_pos) <= wall_entry_distance:
+                wall = False
+
+    found_enemy = grid.found_enemy
+    return {
+        "steps": steps,
+        "collisions": grid.collision_count,
+        "visited_count": len(visited),
+        "found_enemy": found_enemy,
+        "success": found_enemy,
+    }
 
 
 def decide(sensor, state, hp, heat):
@@ -429,7 +556,12 @@ def decide(sensor, state, hp, heat):
 
 def report_to_json(stats):
     """TODO(Q6)：把 stats 序列化为确定性的 JSON 字符串，见题面 Q6 规范。"""
-    raise NotImplementedError("Q6 report_to_json：题面 Q6·报告序列化")
+    return json.dumps(
+        stats,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
 
 
 # ---------------------------------------------------------------------------
