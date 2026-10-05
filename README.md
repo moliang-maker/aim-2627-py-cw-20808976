@@ -68,3 +68,19 @@ python main.py
 
 CI 只允许修改 `src/main/**`、`README.md` 与 `.agent-sessions/**`（AI 会话归档）——其余文件改了直接红；autopep8 `--diff` 非空即败。提交方式（push、问卷、commit 粒度）见题面"提交与验收"一节。
 
+
+## 6. Q7 Debug 修复分析
+
+Q7 的六处缺陷均以 `src/main/legacy_patrol.py` 中各函数 docstring 为契约修复：
+
+1. **路线长度单位错误。** 症状：`total_route_meters([(0, 0), (3, 0), (3, 4)])` 返回 700 而不是 7。根因：函数把 `segment_length_cm` 的厘米结果直接累加到“米”。定位方式：对照 `segment_length_cm` 与 `total_route_meters` 的 docstring，并用可见测试 `test_route_meters` 最小复现。修复：每段先按 1 格 = 1 米 = 100 厘米换算为米再累加。验证：非模拟测试和完整 Q7 测试均通过。
+2. **无正样本时基线未处理。** 症状：`calibrate([-1, -2])` 抛出 `TypeError`。根因：`first_positive` 合法返回 `None`，但循环仍执行 `s - baseline`。定位方式：按 docstring 的“没有正样本时漂移为 0”检查空样本和全负样本，最小复现 `[-1, -2]`。修复：基线为 `None` 时直接返回 0。验证：`test_calibrate_no_positive` 通过。
+3. **`max_id` 边界被排除。** 症状：事件 `id == max_id` 没有被统计，`summarize_events(events, 2)` 少计一项。根因：条件误写成 `< max_id`，与 docstring 的“id 不超过 max_id”不符。定位方式：用边界事件 `id=2`、`max_id=2` 做最小复现，并对照 `test_summarize_includes_max_id`。修复：条件改为 `<= max_id`。验证：完整 Q7 测试通过。
+4. **默认历史被跨调用共享。** 症状：连续调用 `log("a")`、`log("b")` 返回同一历史。根因：可变默认参数 `history=[]` 在函数定义时创建一次。定位方式：查看函数签名和连续两次默认调用，最小复现返回 `["a","b"]`。修复：默认值改为 `None`，每次调用时创建新列表。验证：`test_log_default_history_independent` 通过。
+5. **低体力停止条件方向错误。** 症状：`run_legacy_sim(2, 28)` 继续执行到第二轮，而契约要求第一轮结束后体力为 20 时立即停止。根因：条件写成 `stamina > 20` 才停止，边界值 20 未停止。定位方式：按 docstring 的“`<=20` 立即终止”检查边界，最小复现 `(2, 28)`。修复：改为 `stamina <= 20`。验证：`test_sim_stops_at_threshold` 通过。
+6. **轮号未递增导致额外消耗提前生效。** 症状：第 4 轮额外消耗从第 0 轮开始生效，轮号和 trace 不符。根因：循环修改了体力但没有执行 `round_ += 1`。定位方式：检查 `trace` 中轮号，用 `run_legacy_sim(10, 100)` 对照第 4 轮体力；修复 A 后暴露该配对缺陷。修复：每轮记录后递增 `round_`。验证：`test_sim_basic_run` 和完整 Q7 测试通过。
+
+验证命令：
+
+- `.\.venv\Scripts\python.exe -m pytest src\tests\test_legacy.py -q -k "not sim_basic_run and not sim_stops_at_threshold"`：5 passed；
+- `.\.venv\Scripts\python.exe -m pytest src\tests\test_legacy.py -q`：7 passed。
