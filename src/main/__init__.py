@@ -12,6 +12,7 @@
 - `python main.py`（或 PYTHONPATH=src python -m main）可看 ASCII 演示。
 """
 import json
+import math
 from collections import deque
 from enum import Enum
 
@@ -41,7 +42,9 @@ def hp_ratio(hp, max_hp):
     try:
         current = float(hp)
         maximum = float(max_hp)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
+        return 0
+    if not math.isfinite(current) or not math.isfinite(maximum):
         return 0
     if maximum <= 0:
         return 0
@@ -52,7 +55,7 @@ def status_report(name, robot_type, hp, max_hp, battery):
     """TODO(Q1)：一行自检报告字符串；档位判定与逐字符格式见题面 Q1 规范。"""
     try:
         battery_value = int(battery)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         battery_value = 0
     battery_value = max(0, min(100, battery_value))
     if battery_value >= 60:
@@ -501,11 +504,19 @@ def decide(sensor, state, hp, heat):
     else:
         max_hp = 1
 
-    if isinstance(hp, (int, float)) and not isinstance(hp, bool):
+    if (
+        isinstance(hp, (int, float))
+        and not isinstance(hp, bool)
+        and math.isfinite(hp)
+    ):
         normalized_hp = hp
     else:
         normalized_hp = 0
-    if isinstance(heat, (int, float)) and not isinstance(heat, bool):
+    if (
+        isinstance(heat, (int, float))
+        and not isinstance(heat, bool)
+        and math.isfinite(heat)
+    ):
         normalized_heat = int(heat)
     else:
         normalized_heat = 0
