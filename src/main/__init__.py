@@ -1,3 +1,4 @@
+# aim-py-cw
 # -*- coding: utf-8 -*-
 """AIM 2627 Python Coursework —— 哨兵 Sentry 控制模块（学生骨架）。
 
@@ -11,6 +12,7 @@
 - `python main.py`（或 PYTHONPATH=src python -m main）可看 ASCII 演示。
 """
 import json
+from collections import deque
 from enum import Enum
 
 
@@ -568,8 +570,31 @@ def report_to_json(stats):
 # Bonus：BFS 全局最短路（题面 Bonus·BFS 语义与排行榜）
 # ---------------------------------------------------------------------------
 def bfs_path_length(start, target, obstacles):
-    """TODO(Bonus)：BFS 全局最短路步数；返回语义与边界职责见题面 Bonus 规范。"""
-    raise NotImplementedError("Bonus bfs_path_length")
+    """Return the length of the shortest four-neighbor BFS path.
+
+    ``start == target`` returns 0, an unreachable target returns -1, and
+    callers are responsible for supplying obstacle coordinates, including
+    any map boundaries they want treated as blocked.
+    """
+    if start == target:
+        return 0
+    blocked = set(obstacles) if obstacles is not None else set()
+    if start in blocked or target in blocked:
+        return -1
+    queue = deque([(start, 0)])
+    visited = {start}
+    while queue:
+        position, distance = queue.popleft()
+        x, y = position
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            neighbor = (x + dx, y + dy)
+            if neighbor in blocked or neighbor in visited:
+                continue
+            if neighbor == target:
+                return distance + 1
+            visited.add(neighbor)
+            queue.append((neighbor, distance + 1))
+    return -1
 
 
 # ---------------------------------------------------------------------------

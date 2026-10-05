@@ -84,3 +84,11 @@ Q7 的六处缺陷均以 `src/main/legacy_patrol.py` 中各函数 docstring 为�
 
 - `.\.venv\Scripts\python.exe -m pytest src\tests\test_legacy.py -q -k "not sim_basic_run and not sim_stops_at_threshold"`：5 passed；
 - `.\.venv\Scripts\python.exe -m pytest src\tests\test_legacy.py -q`：7 passed。
+
+## Bonus 排行榜
+
+- Bonus 只实现 `bfs_path_length`，使用四邻域 BFS 返回全局最短路步数。
+- `tools/run_seeds.py --bonus` 中的 `run_bonus` 在独立验证循环中使用 `bfs_path_length`，不修改学生 `run_patrol`。
+- Q6 的学生 `run_patrol` 仍使用 Q4 贪心导航和沿墙脱困，不改成 BFS。
+- 本地验证命令：`python tools/run_seeds.py --bonus`。
+- 排行榜按成功率、平均步数、平均碰撞排序；批改时仍以固定 200 张地图重跑为准。
