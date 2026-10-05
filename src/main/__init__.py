@@ -324,7 +324,7 @@ class SentryState(Enum):
     RETURN = "RETURN"
 
 
-def decide(sensor, state, hp, heat):
+def _decide_legacy(sensor, state, hp, heat):
     """TODO(Q5)：纯函数决策，返回 (action: str, new_state: SentryState)；
     sensor 字段契约、R1-R7 规则表与非法输入处理见题面 Q5 规范。"""
     raise NotImplementedError("Q5 decide：题面 Q5·决策规则表 R1-R7")
@@ -337,6 +337,94 @@ def run_patrol(grid, max_steps=500):
     """TODO(Q6)：sense → decide → act 主循环；
     循环结构、终止条件、脱困自由度与统计返回契约见题面 Q6 规范。"""
     raise NotImplementedError("Q6 run_patrol：题面 Q6·主循环与统计契约")
+
+
+def decide(sensor, state, hp, heat):
+    required_fields = {"enemy_frames", "enemy_dist", "robot_type", "max_hp"}
+    if not isinstance(sensor, dict) or not required_fields.issubset(sensor):
+        raise ValueError("sensor fields missing")
+    if not isinstance(state, SentryState):
+        raise ValueError("invalid state")
+
+    raw_frames = sensor["enemy_frames"]
+    if isinstance(raw_frames, (tuple, list)):
+        enemy_frames = tuple(bool(value) for value in raw_frames)
+    else:
+        enemy_frames = (bool(raw_frames),)
+    if not enemy_frames or len(enemy_frames) > 6:
+        raise ValueError("invalid enemy_frames")
+
+    raw_distance = sensor["enemy_dist"]
+    if type(raw_distance) is int and raw_distance >= 0:
+        enemy_dist = raw_distance
+    else:
+        enemy_dist = None
+
+    raw_robot_type = sensor["robot_type"]
+    if isinstance(raw_robot_type, str) and raw_robot_type.upper() == "HERO":
+        robot_type = "HERO"
+    else:
+        robot_type = "INFANTRY"
+
+    raw_max_hp = sensor["max_hp"]
+    if type(raw_max_hp) is int and raw_max_hp > 0:
+        max_hp = raw_max_hp
+    else:
+        max_hp = 1
+
+    if isinstance(hp, (int, float)) and not isinstance(hp, bool):
+        normalized_hp = hp
+    else:
+        normalized_hp = 0
+    if isinstance(heat, (int, float)) and not isinstance(heat, bool):
+        normalized_heat = int(heat)
+    else:
+        normalized_heat = 0
+
+    hp_pct = hp_ratio(normalized_hp, max_hp)
+    visible = enemy_frames[-1]
+    sustained_loss = (
+        len(enemy_frames) >= 2
+        and not enemy_frames[-1]
+        and not enemy_frames[-2]
+    )
+    sustained_sight = (
+        len(enemy_frames) >= 2
+        and enemy_frames[-1]
+        and enemy_frames[-2]
+    )
+
+    if hp_pct <= 30:
+        return "RETREAT", SentryState.RETREAT
+    if state is SentryState.RETREAT:
+        if hp_pct > 30:
+            return "RETURN", SentryState.RETURN
+        return "RETREAT", SentryState.RETREAT
+    if state is SentryState.RETURN:
+        return "MOVE_BASE", SentryState.PATROL
+    if state is SentryState.ENGAGE:
+        if visible:
+            if enemy_dist is not None and enemy_dist <= 3:
+                return "SHOOT", SentryState.ENGAGE
+            if robot_type == "HERO":
+                return "MOVE_RIGHT", SentryState.ENGAGE
+            return "MOVE_LEFT", SentryState.ENGAGE
+        if sustained_loss:
+            return "SCAN", SentryState.SUSPECT
+        return "HOLD_FIRE", SentryState.ENGAGE
+    if state in (SentryState.PATROL, SentryState.SUSPECT):
+        if visible:
+            if sustained_sight:
+                if enemy_dist is not None and enemy_dist <= 3:
+                    return "SHOOT", SentryState.ENGAGE
+                if robot_type == "HERO":
+                    return "MOVE_RIGHT", SentryState.ENGAGE
+                return "MOVE_LEFT", SentryState.ENGAGE
+            return "SCAN", SentryState.SUSPECT
+        if state is SentryState.PATROL:
+            return "PATROL_MOVE", SentryState.PATROL
+        return "SCAN", SentryState.SUSPECT
+    return "SCAN", SentryState.SUSPECT
 
 
 def report_to_json(stats):
