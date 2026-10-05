@@ -282,7 +282,33 @@ class SentryGrid:
 def next_step_toward(pos, target, obstacles, current_facing=Facing.UP):
     """TODO(Q4)：返回下一步应朝向的 Facing；
     候选判定、优先级与回退规则见题面 Q4 规范。"""
-    raise NotImplementedError("Q4 next_step_toward：题面 Q4·贪心策略与回退")
+    pos_x, pos_y = pos
+    target_x, target_y = target
+    current_distance = abs(pos_x - target_x) + abs(pos_y - target_y)
+    axis_gap = abs(target_x - pos_x) - abs(target_y - pos_y)
+    directions = (Facing.RIGHT, Facing.LEFT, Facing.UP, Facing.DOWN)
+    candidates = []
+    for direction in directions:
+        dx, dy = direction.delta
+        next_pos = (pos_x + dx, pos_y + dy)
+        if next_pos in obstacles:
+            continue
+        next_distance = (
+            abs(next_pos[0] - target_x) + abs(next_pos[1] - target_y))
+        if next_distance < current_distance:
+            candidates.append(direction)
+    if not candidates:
+        return current_facing
+    if axis_gap > 0:
+        preferred = {Facing.RIGHT, Facing.LEFT}
+    elif axis_gap < 0:
+        preferred = {Facing.UP, Facing.DOWN}
+    else:
+        preferred = set(directions)
+    for direction in directions:
+        if direction in preferred and direction in candidates:
+            return direction
+    return candidates[0]
 
 
 # ---------------------------------------------------------------------------
