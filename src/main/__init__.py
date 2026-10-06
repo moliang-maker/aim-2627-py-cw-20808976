@@ -424,6 +424,7 @@ def run_patrol(grid, max_steps=500):
     wall_steps = 0
     wall_limit = grid.width + grid.height
     wall_entry_distance = 0
+    escape_states = set()
     left_of = {
         Facing.UP: Facing.LEFT,
         Facing.LEFT: Facing.DOWN,
@@ -451,6 +452,32 @@ def run_patrol(grid, max_steps=500):
             for direction in (Facing.UP, Facing.DOWN, Facing.LEFT, Facing.RIGHT)
         )
 
+    def escape_direction():
+        blocked = set(grid.obstacles)
+        blocked.update((x, -1) for x in range(grid.width))
+        blocked.update((x, grid.height) for x in range(grid.width))
+        blocked.update((-1, y) for y in range(grid.height))
+        blocked.update((grid.width, y) for y in range(grid.height))
+        remaining = bfs_path_length(
+            grid.current_pos, grid.enemy_pos, blocked
+        )
+        if remaining <= 0:
+            return None
+        turn_order = (
+            Facing.UP, Facing.RIGHT, Facing.DOWN, Facing.LEFT
+        )
+        for direction in turn_order:
+            next_pos = (
+                grid.current_pos[0] + direction.delta[0],
+                grid.current_pos[1] + direction.delta[1],
+            )
+            if grid.is_blocked(*next_pos):
+                continue
+            if bfs_path_length(
+                    next_pos, grid.enemy_pos, blocked) == remaining - 1:
+                return direction
+        return None
+
     while steps < max_steps and grid.fuel > 0 and not grid.found_enemy:
         position = grid.current_pos
         enemy_frames.append(grid.current_pos == grid.enemy_pos)
@@ -475,6 +502,29 @@ def run_patrol(grid, max_steps=500):
             wall_entry_distance = manhattan(position)
 
         if wall:
+            state_key = (grid.current_pos, grid.facing, hand)
+            if state_key in escape_states:
+                direction = escape_direction()
+                if direction is not None:
+                    escape_states.clear()
+                    turn_order = (
+                        Facing.UP, Facing.RIGHT, Facing.DOWN, Facing.LEFT
+                    )
+                    current_index = turn_order.index(grid.facing)
+                    target_index = turn_order.index(direction)
+                    turn = (target_index - current_index) % 4
+                    if turn == 3:
+                        grid.turn_left()
+                    else:
+                        for _ in range(turn):
+                            grid.turn_right()
+                    before = grid.current_pos
+                    grid.move_forward()
+                    steps += 1
+                    if grid.current_pos != before:
+                        visited.add(grid.current_pos)
+                    continue
+            escape_states.add(state_key)
             side = left_of[grid.facing] if hand == "L" else right_of[grid.facing]
             opposite = (
                 right_of[grid.facing]
@@ -532,8 +582,10 @@ def run_patrol(grid, max_steps=500):
                 wall_steps = 0
             elif wall_steps > 2 * wall_limit:
                 wall = False
+                escape_states.clear()
             elif has_candidate() and manhattan(grid.current_pos) <= wall_entry_distance:
                 wall = False
+                escape_states.clear()
 
     found_enemy = grid.found_enemy
     return {
