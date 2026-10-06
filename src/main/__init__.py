@@ -37,33 +37,41 @@ class Facing(Enum):
 # ---------------------------------------------------------------------------
 # Q1 机器人自检（题面 Q1·自检状态计算与报告生成）
 # ---------------------------------------------------------------------------
+def _finite_float(value):
+    try:
+        normalized = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if not math.isfinite(normalized):
+        return None
+    return normalized
+
+
+def _battery_tier(value):
+    try:
+        battery_value = int(value)
+    except (TypeError, ValueError, OverflowError):
+        battery_value = 0
+    battery_value = max(0, min(100, battery_value))
+    if battery_value >= 60:
+        return battery_value, "OK"
+    if battery_value >= 20:
+        return battery_value, "WARNING"
+    return battery_value, "LOW"
+
+
 def hp_ratio(hp, max_hp):
     """TODO(Q1)：血量百分比，返回 0-100 的 int；计算与边界规则见题面 Q1 规范。"""
-    try:
-        current = float(hp)
-        maximum = float(max_hp)
-    except (TypeError, ValueError, OverflowError):
-        return 0
-    if not math.isfinite(current) or not math.isfinite(maximum):
-        return 0
-    if maximum <= 0:
+    current = _finite_float(hp)
+    maximum = _finite_float(max_hp)
+    if current is None or maximum is None or maximum <= 0:
         return 0
     return max(0, min(100, round(current / maximum * 100)))
 
 
 def status_report(name, robot_type, hp, max_hp, battery):
     """TODO(Q1)：一行自检报告字符串；档位判定与逐字符格式见题面 Q1 规范。"""
-    try:
-        battery_value = int(battery)
-    except (TypeError, ValueError, OverflowError):
-        battery_value = 0
-    battery_value = max(0, min(100, battery_value))
-    if battery_value >= 60:
-        tier = "OK"
-    elif battery_value >= 20:
-        tier = "WARNING"
-    else:
-        tier = "LOW"
+    battery_value, tier = _battery_tier(battery)
     return "{:<10}|{:^10}|HP {:>3}%|BAT {:>3}%|{}".format(
         str(name), str(robot_type), hp_ratio(hp, max_hp), battery_value, tier)
 
