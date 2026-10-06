@@ -80,10 +80,16 @@ def analyze_damage_log(lines):
     armor_names = {"F": "front", "L": "left", "R": "right"}
     try:
         source_lines = iter(lines)
-    except TypeError:
+    except Exception:
         source_lines = iter(())
 
-    for raw_line in source_lines:
+    while True:
+        try:
+            raw_line = next(source_lines)
+        except StopIteration:
+            break
+        except Exception:
+            break
         try:
             line = raw_line.strip()
             if not line or line.startswith("#"):
@@ -182,7 +188,7 @@ class SentryGrid:
         self._facing = facing
         self._fuel = int(fuel)
         self._collision_count = 0
-        self._pos = self._clamp_cell(start_pos)
+        self.current_pos = start_pos
         if self._pos in self._obstacles:
             raise ValueError("start_pos 不能位于障碍物上")
 
@@ -287,6 +293,7 @@ class SentryGrid:
 def next_step_toward(pos, target, obstacles, current_facing=Facing.UP):
     """TODO(Q4)：返回下一步应朝向的 Facing；
     候选判定、优先级与回退规则见题面 Q4 规范。"""
+    blocked = set() if obstacles is None else set(obstacles)
     pos_x, pos_y = pos
     target_x, target_y = target
     current_distance = abs(pos_x - target_x) + abs(pos_y - target_y)
@@ -296,7 +303,7 @@ def next_step_toward(pos, target, obstacles, current_facing=Facing.UP):
     for direction in directions:
         dx, dy = direction.delta
         next_pos = (pos_x + dx, pos_y + dy)
-        if next_pos in obstacles:
+        if next_pos in blocked:
             continue
         next_distance = (
             abs(next_pos[0] - target_x) + abs(next_pos[1] - target_y))

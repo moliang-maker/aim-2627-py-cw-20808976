@@ -28,10 +28,10 @@ def segment_length_cm(p1, p2):
 def total_route_meters(points):
     """整条巡逻路线的长度，单位：米。
     points 为检查点序列 [(x, y), ...]，至少两个点。"""
-    distance_in_meters = 0
+    distance_in_meters = 0.0
     for i in range(len(points) - 1):
         distance_in_meters += (
-            segment_length_cm(points[i], points[i + 1]) // 100
+            segment_length_cm(points[i], points[i + 1]) / 100
         )
     return distance_in_meters
 
@@ -61,6 +61,7 @@ def first_positive(samples):
 def calibrate(samples):
     """以第一个正样本为基线计算累计漂移：sum(s - baseline)。
     样本为空或没有正样本时，漂移为 0。"""
+    samples = tuple(samples)
     baseline = first_positive(samples)
     if baseline is None:
         return 0
