@@ -85,6 +85,8 @@ Q7 的六处缺陷均以 `src/main/legacy_patrol.py` 中各函数 docstring 为�
 - `.\.venv\Scripts\python.exe -m pytest src\tests\test_legacy.py -q -k "not sim_basic_run and not sim_stops_at_threshold"`：5 passed；
 - `.\.venv\Scripts\python.exe -m pytest src\tests\test_legacy.py -q`：7 passed。
 
+- **补充边界：非字符串事件行。** 症状：`parse_event(None)` 抛出 `AttributeError`。根因：函数直接调用 `line.strip()`，未先执行输入类型检查。定位方式：按 `parse_event` docstring 的“脏行返回 None（不得抛异常）”构造最小复现。修复：非 `str` 输入直接返回 `None`。验证：临时探针传入 `None`、整数和字节数组，均返回 `None`；Q7 可见测试通过。
+
 ## Bonus 排行榜
 
 - Bonus 只实现 `bfs_path_length`，使用四邻域 BFS 返回全局最短路步数。
