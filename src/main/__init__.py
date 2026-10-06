@@ -79,6 +79,46 @@ def status_report(name, robot_type, hp, max_hp, battery):
 # ---------------------------------------------------------------------------
 # Q2 战斗日志分析（题面 Q2·多源日志解析与统计）
 # ---------------------------------------------------------------------------
+def _parse_sensor_event(line):
+    armor_names = {"F": "front", "L": "left", "R": "right"}
+    event_damage = {}
+    for segment in line.split(","):
+        if ":" not in segment:
+            raise ValueError("invalid sensor segment")
+        letter, raw_value = segment.split(":", 1)
+        if letter not in armor_names or letter in event_damage:
+            raise ValueError("invalid sensor letter")
+        if not raw_value.isdigit():
+            raise ValueError("invalid sensor damage")
+        value = int(raw_value)
+        if value <= 0:
+            raise ValueError("invalid sensor damage")
+        event_damage[letter] = value
+    if not event_damage:
+        raise ValueError("empty sensor event")
+    return event_damage
+
+
+def _parse_json_event(event):
+    armor = event.get("armor")
+    if armor not in {"front", "left", "right"}:
+        return None
+    damage = event.get("damage")
+    if type(damage) is not int or damage <= 0:
+        return None
+    has_id = "id" in event
+    id_key = None
+    if has_id:
+        try:
+            id_key = json.dumps(
+                event["id"], sort_keys=True,
+                separators=(",", ":"), ensure_ascii=False,
+                allow_nan=False)
+        except (TypeError, ValueError):
+            return None
+    return armor, damage, id_key, has_id
+
+
 def analyze_damage_log(lines):
     """TODO(Q2)：解析混合格式伤害日志，返回固定契约的统计 dict；
     行格式、去重与统计口径见题面 Q2 规范。"""
@@ -107,40 +147,16 @@ def analyze_damage_log(lines):
                 event = json.loads(line)
                 if not isinstance(event, dict):
                     continue
-                armor = event.get("armor")
-                if armor not in armor_totals:
+                parsed = _parse_json_event(event)
+                if parsed is None:
                     continue
-                damage = event.get("damage")
-                if type(damage) is not int or damage <= 0:
-                    continue
-                if "id" in event:
-                    try:
-                        id_key = json.dumps(
-                            event["id"], sort_keys=True,
-                            separators=(",", ":"), ensure_ascii=False,
-                            allow_nan=False)
-                    except (TypeError, ValueError):
-                        continue
+                armor, damage, id_key, has_id = parsed
+                if has_id:
                     if id_key in seen_ids:
                         continue
                     seen_ids.add(id_key)
             else:
-                segments = line.split(",")
-                event_damage = {}
-                for segment in segments:
-                    if ":" not in segment:
-                        raise ValueError("invalid sensor segment")
-                    letter, raw_value = segment.split(":", 1)
-                    if letter not in armor_names or letter in event_damage:
-                        raise ValueError("invalid sensor letter")
-                    if not raw_value.isdigit():
-                        raise ValueError("invalid sensor damage")
-                    value = int(raw_value)
-                    if value <= 0:
-                        raise ValueError("invalid sensor damage")
-                    event_damage[letter] = value
-                if not event_damage:
-                    raise ValueError("empty sensor event")
+                event_damage = _parse_sensor_event(line)
                 armor = None
                 damage = sum(event_damage.values())
                 for letter, value in event_damage.items():
