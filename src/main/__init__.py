@@ -336,6 +336,55 @@ class SentryState(Enum):
     RETURN = "RETURN"
 
 
+def _normalize_enemy_frames(raw_frames):
+    """Normalize the frame history while preserving its declared contract."""
+    if isinstance(raw_frames, (tuple, list)):
+        normalized = tuple(bool(value) for value in raw_frames)
+    else:
+        normalized = (bool(raw_frames),)
+    if not normalized or len(normalized) > 6:
+        raise ValueError("invalid enemy_frames")
+    return normalized
+
+
+def _normalize_enemy_dist(raw_distance):
+    if type(raw_distance) is int and raw_distance >= 0:
+        return raw_distance
+    return None
+
+
+def _normalize_robot_type(raw_robot_type):
+    if isinstance(raw_robot_type, str) and raw_robot_type.upper() == "HERO":
+        return "HERO"
+    return "INFANTRY"
+
+
+def _normalize_max_hp(raw_max_hp):
+    if type(raw_max_hp) is int and raw_max_hp > 0:
+        return raw_max_hp
+    return 1
+
+
+def _normalize_hp(raw_hp):
+    if (
+        isinstance(raw_hp, (int, float))
+        and not isinstance(raw_hp, bool)
+        and math.isfinite(raw_hp)
+    ):
+        return raw_hp
+    return 0
+
+
+def _normalize_heat(raw_heat):
+    if (
+        isinstance(raw_heat, (int, float))
+        and not isinstance(raw_heat, bool)
+        and math.isfinite(raw_heat)
+    ):
+        return int(raw_heat)
+    return 0
+
+
 def _decide_legacy(sensor, state, hp, heat):
     """TODO(Q5)：纯函数决策，返回 (action: str, new_state: SentryState)；
     sensor 字段契约、R1-R7 规则表与非法输入处理见题面 Q5 规范。"""
@@ -485,48 +534,12 @@ def decide(sensor, state, hp, heat):
     if not isinstance(state, SentryState):
         raise ValueError("invalid state")
 
-    raw_frames = sensor["enemy_frames"]
-    if isinstance(raw_frames, (tuple, list)):
-        enemy_frames = tuple(bool(value) for value in raw_frames)
-    else:
-        enemy_frames = (bool(raw_frames),)
-    if not enemy_frames or len(enemy_frames) > 6:
-        raise ValueError("invalid enemy_frames")
-
-    raw_distance = sensor["enemy_dist"]
-    if type(raw_distance) is int and raw_distance >= 0:
-        enemy_dist = raw_distance
-    else:
-        enemy_dist = None
-
-    raw_robot_type = sensor["robot_type"]
-    if isinstance(raw_robot_type, str) and raw_robot_type.upper() == "HERO":
-        robot_type = "HERO"
-    else:
-        robot_type = "INFANTRY"
-
-    raw_max_hp = sensor["max_hp"]
-    if type(raw_max_hp) is int and raw_max_hp > 0:
-        max_hp = raw_max_hp
-    else:
-        max_hp = 1
-
-    if (
-        isinstance(hp, (int, float))
-        and not isinstance(hp, bool)
-        and math.isfinite(hp)
-    ):
-        normalized_hp = hp
-    else:
-        normalized_hp = 0
-    if (
-        isinstance(heat, (int, float))
-        and not isinstance(heat, bool)
-        and math.isfinite(heat)
-    ):
-        normalized_heat = int(heat)
-    else:
-        normalized_heat = 0
+    enemy_frames = _normalize_enemy_frames(sensor["enemy_frames"])
+    enemy_dist = _normalize_enemy_dist(sensor["enemy_dist"])
+    robot_type = _normalize_robot_type(sensor["robot_type"])
+    max_hp = _normalize_max_hp(sensor["max_hp"])
+    normalized_hp = _normalize_hp(hp)
+    normalized_heat = _normalize_heat(heat)
 
     hp_pct = hp_ratio(normalized_hp, max_hp)
     visible = enemy_frames[-1]
